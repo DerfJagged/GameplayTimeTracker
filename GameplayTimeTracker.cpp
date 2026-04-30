@@ -1,4 +1,4 @@
-﻿//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
 // GameplayTimeTracker.cpp
 //
 // A DashLaunch plugin to log title ID changes for use with the Gameplay Time Tracker Aurora script.
@@ -13,7 +13,7 @@
 #include <time.h>
 #include "GameplayTimeTracker.h"
 
-const char* filename = "HDD:\\Aurora\\User\\Scripts\\Utility\\GameplayTimeTracker\\session.log";
+char* sessionFilename = "HDD:\\Aurora\\User\\Scripts\\Utility\\GameplayTimeTracker\\";
 bool guide_open = true;
 char tempString[30];
 FILE* file;
@@ -27,6 +27,7 @@ static DWORD  g_NewOriginalXboxTitleId = 0;
 static DWORD  g_ThreadId;
 
 static void Main01(){
+	//Sleep(25000 + 10000); //wait for Aurora + 10 seconds
 	printf("\n[GTT] Gameplay Time Tracker boot plugin started!");
     StartTracker();
 }
@@ -61,7 +62,7 @@ HRESULT CreateSymbolicLink(CHAR* szDrive, CHAR* szDeviceName, BOOL System) {
 	return S_FALSE;
 }
 
-DWORD WINAPI TitleMonitorThread(LPVOID) {
+DWORD WINAPI HeartbeatThread(LPVOID) {
 	// Heartbeat logs out every 5 minutes
 	//printf("\n[GTT] Print from new thread");
     
@@ -74,15 +75,15 @@ DWORD WINAPI TitleMonitorThread(LPVOID) {
 }
 
 void LogTitleID(DWORD g_NewTitleId, short logtype) {
-	file = fopen(filename, "a");
+	file = fopen(sessionFilename, "a");
 	
     if (file) {
 		if (logtype == LOGTYPE_HEARTBEAT) {
-			//printf("\n[GTT] Logging heartbeat to %s\n", filename);
+			//printf("\n[GTT] Logging heartbeat to %s\n", sessionFilename);
 			sprintf(tempString, "heartbeat,%lu\n", (unsigned long)time(NULL));
 		}
 		else if (logtype == LOGTYPE_TITLEIDCHANGE) {
-			//printf("\n[GTT] Logging title ID %08X to %s\n", g_NewTitleId, filename);
+			//printf("\n[GTT] Logging title ID %08X to %s\n", g_NewTitleId, sessionFilename);
 			sprintf(tempString, "%08X,%lu\n", g_NewTitleId, (unsigned long)time(NULL));
 		}
 		else if (logtype == LOGTYPE_CONSOLESTART) {
@@ -97,10 +98,29 @@ void LogTitleID(DWORD g_NewTitleId, short logtype) {
     }
 }
 
+BOOL DirectoryExists(const char* path) {
+	if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
+        return FALSE;
+	}
+	else {
+		return TRUE;
+	}
+}
+
 void StartTracker() {
 	CreateSymbolicLink("HDD:", "\\Device\\Harddisk0\\Partition1", TRUE);
-	g_LastTitleId = XamGetCurrentTitleId();
+	if (!DirectoryExists(sessionFilename)) {
+		CreateSymbolicLink("USB:", "\\Device\\Mass0", TRUE);
+		sessionFilename = "USB:\\Aurora\\User\\Scripts\\Utility\\GameplayTimeTracker\\";
+		if (!DirectoryExists(sessionFilename)) {
+			printf("\n[GTT] \Aurora\User\Scripts\Utility\GameplayTimeTracker\ not found on HDD or USB!");
+			exit;
+		}
+	}
+	strcat(sessionFilename, "session.log");
 	
+	// Log console start and initial title ID
+	g_LastTitleId = XamGetCurrentTitleId();
 	LogTitleID(0, LOGTYPE_CONSOLESTART);
 	LogTitleID(g_LastTitleId, LOGTYPE_TITLEIDCHANGE);
 	//printf("\nInitial title ID: %08X", g_LastTitleId);
@@ -113,7 +133,7 @@ void StartTracker() {
 	}
 
 	// Create heartbeat thread
-	ExCreateThread(&g_hThread, 0, &g_ThreadId, NULL, TitleMonitorThread, NULL, 0x2);
+	ExCreateThread(&g_hThread, 0, &g_ThreadId, NULL, HeartbeatThread, NULL, 0x2);
 	XSetThreadProcessor(g_hThread, 4);
 	ResumeThread(g_hThread);
 
