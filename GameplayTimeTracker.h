@@ -8,6 +8,7 @@
 #define LOGTYPE_CONSOLESTART 0
 #define LOGTYPE_TITLEIDCHANGE 1
 #define LOGTYPE_HEARTBEAT 2
+#define INVALID_FILE_ATTRIBUTES -1
 
 typedef long NTSTATUS;
 typedef unsigned __int64 QWORD;
@@ -22,9 +23,11 @@ typedef struct _ANSI_STRING {
 // Functions
 void StartTracker();
 void LogTitleID(DWORD g_NewTitleId, short logtype);
+BOOL DirectoryExists(const char* path);
 HRESULT CreateSymbolicLink(CHAR* szDrive, CHAR* szDeviceName, BOOL System);
 PDWORD ResolveFunction(char* moduleName, DWORD ordinal);
 DWORD GetCurrentOGXboxTitleId();
+DWORD WINAPI HeartbeatThread(LPVOID);
 
 EXTERN_C { 
 	DWORD ExCreateThread(PHANDLE pHandle, DWORD dwStackSize, LPDWORD lpThreadId, 
